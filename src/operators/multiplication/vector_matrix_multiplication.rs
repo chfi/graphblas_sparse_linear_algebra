@@ -55,7 +55,7 @@ where
     _product: PhantomData<Product>,
 
     accumulator: GrB_BinaryOp, // optional accum for Z=accum(C,T), determines how results are written into the result matrix C
-    semiring: GrB_Semiring,    // defines '+' and '*' for A*B (not optional for GrB_mxm)
+    semiring: GrB_Semiring, // defines '+' and '*' for A*B (not optional for GrB_mxm)
     options: GrB_Descriptor,
 }
 
@@ -67,13 +67,17 @@ where
     Product: ValueType,
 {
     pub fn new(
-        semiring: Box<dyn Semiring<Multiplier, Multiplicant, Product>>, // defines '+' and '*' for A*B (not optional for GrB_mxm)
-        options: OperatorOptions,
+        // semiring: Box<dyn Semiring<Multiplier, Multiplicant, Product>>,
+        // defines '+' and '*' for A*B (not optional for GrB_mxm)
+        semiring: &dyn Semiring<Multiplier, Multiplicant, Product>,
+        options: &OperatorOptions,
         accumulator: Option<Box<dyn BinaryOperator<Product, Product, Product>>>, // optional accum for Z=accum(C,T), determines how results are written into the result matrix C
     ) -> Self {
         let accumulator_to_use;
         match accumulator {
-            Some(accumulator) => accumulator_to_use = accumulator.graphblas_type(),
+            Some(accumulator) => {
+                accumulator_to_use = accumulator.graphblas_type()
+            }
             None => accumulator_to_use = ptr::null_mut(),
         }
 
@@ -112,7 +116,10 @@ where
         Ok(())
     }
 
-    pub fn apply_with_mask<MaskValueType: ValueType, AsBool: AsBoolean<MaskValueType>>(
+    pub fn apply_with_mask<
+        MaskValueType: ValueType,
+        AsBool: AsBoolean<MaskValueType>,
+    >(
         &self,
         mask: &VectorMask<MaskValueType, AsBool>,
         multiplier: &SparseVector<Multiplier>,
@@ -145,9 +152,12 @@ mod tests {
     use crate::operators::binary_operator::First;
     use crate::operators::binary_operator::Plus;
     use crate::operators::semiring::PlusTimes;
-    use crate::value_types::sparse_matrix::{FromMatrixElementList, MatrixElementList, Size};
+    use crate::value_types::sparse_matrix::{
+        FromMatrixElementList, MatrixElementList, Size,
+    };
     use crate::value_types::sparse_vector::{
-        FromVectorElementList, GetVectorElementList, GetVectorElementValue, VectorElementList,
+        FromVectorElementList, GetVectorElementList, GetVectorElementValue,
+        VectorElementList,
     };
 
     #[test]
@@ -156,11 +166,12 @@ mod tests {
 
         let semiring = Box::new(PlusTimes::<f32, f32, f32>::new());
         let options = OperatorOptions::new_default();
-        let matrix_multiplier = VectorMatrixMultiplicationOperator::<f32, f32, f32>::new(
-            semiring.clone(),
-            options.clone(),
-            None,
-        );
+        let matrix_multiplier =
+            VectorMatrixMultiplicationOperator::<f32, f32, f32>::new(
+                semiring.clone(),
+                options.clone(),
+                None,
+            );
 
         let length = 2;
         let size: Size = (length, length).into();
@@ -180,7 +191,10 @@ mod tests {
         assert_eq!(product.get_element_value(&1).unwrap(), 0.); // NoValue
 
         let multiplier_element_list =
-            VectorElementList::<f32>::from_element_vector(vec![(0, 1.0).into(), (1, 2.0).into()]);
+            VectorElementList::<f32>::from_element_vector(vec![
+                (0, 1.0).into(),
+                (1, 2.0).into(),
+            ]);
         let multiplier = SparseVector::<f32>::from_element_list(
             &context,
             &length,
@@ -189,12 +203,13 @@ mod tests {
         )
         .unwrap();
 
-        let multiplicant_element_list = MatrixElementList::<f32>::from_element_vector(vec![
-            (0, 0, 5.0).into(),
-            (1, 0, 6.0).into(),
-            (0, 1, 7.0).into(),
-            (1, 1, 8.0).into(),
-        ]);
+        let multiplicant_element_list =
+            MatrixElementList::<f32>::from_element_vector(vec![
+                (0, 0, 5.0).into(),
+                (1, 0, 6.0).into(),
+                (0, 1, 7.0).into(),
+                (1, 1, 8.0).into(),
+            ]);
         let multiplicant = SparseMatrix::<f32>::from_element_list(
             &context,
             &size,
@@ -214,7 +229,10 @@ mod tests {
         // TODO: this test is not generic over column/row storage format.
         // Equality checks should be done at a matrix level, since the ordering of the element list is not guaranteed.
         let expected_product =
-            VectorElementList::<f32>::from_element_vector(vec![(0, 17.).into(), (1, 23.).into()]);
+            VectorElementList::<f32>::from_element_vector(vec![
+                (0, 17.).into(),
+                (1, 23.).into(),
+            ]);
         let product_element_list = product.get_element_list().unwrap();
         assert_eq!(expected_product, product_element_list);
 
@@ -236,7 +254,10 @@ mod tests {
 
         // test the use of a mask
         let mask_element_list =
-            VectorElementList::<u8>::from_element_vector(vec![(0, 3).into(), (1, 0).into()]);
+            VectorElementList::<u8>::from_element_vector(vec![
+                (0, 3).into(),
+                (1, 0).into(),
+            ]);
         let mask = SparseVector::<u8>::from_element_list(
             &context,
             &length,
@@ -245,16 +266,22 @@ mod tests {
         )
         .unwrap();
 
-        let matrix_multiplier = VectorMatrixMultiplicationOperator::<f32, f32, f32>::new(
-            semiring.clone(),
-            options.clone(),
-            None,
-        );
+        let matrix_multiplier =
+            VectorMatrixMultiplicationOperator::<f32, f32, f32>::new(
+                semiring.clone(),
+                options.clone(),
+                None,
+            );
 
         let mut product = SparseVector::<f32>::new(&context, &length).unwrap();
 
         matrix_multiplier
-            .apply_with_mask(&mask.into(), &multiplier, &multiplicant, &mut product)
+            .apply_with_mask(
+                &mask.into(),
+                &multiplier,
+                &multiplicant,
+                &mut product,
+            )
             .unwrap();
 
         assert_eq!(product.get_element_value(&0).unwrap(), 17.);

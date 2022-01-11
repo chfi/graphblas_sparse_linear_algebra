@@ -79,17 +79,28 @@ pub struct BinaryOperatorApplier<
     options: GrB_Descriptor,
 }
 
-impl<FirstArgument: ValueType, SecondArgument: ValueType, Product: ValueType>
-    BinaryOperatorApplier<FirstArgument, SecondArgument, Product>
+impl<
+        FirstArgument: ValueType,
+        SecondArgument: ValueType,
+        Product: ValueType,
+    > BinaryOperatorApplier<FirstArgument, SecondArgument, Product>
 {
     pub fn new(
-        binary_operator: &dyn BinaryOperator<FirstArgument, SecondArgument, Product>,
+        binary_operator: &dyn BinaryOperator<
+            FirstArgument,
+            SecondArgument,
+            Product,
+        >,
         options: &OperatorOptions,
-        accumulator: Option<&dyn BinaryOperator<FirstArgument, SecondArgument, Product>>, // optional accum for Z=accum(C,T), determines how results are written into the result matrix C
+        accumulator: Option<
+            &dyn BinaryOperator<SecondArgument, SecondArgument, Product>,
+        >, // optional accum for Z=accum(C,T), determines how results are written into the result matrix C
     ) -> Self {
         let accumulator_to_use;
         match accumulator {
-            Some(accumulator) => accumulator_to_use = accumulator.graphblas_type(),
+            Some(accumulator) => {
+                accumulator_to_use = accumulator.graphblas_type()
+            }
             None => accumulator_to_use = ptr::null_mut(),
         }
 
@@ -186,8 +197,17 @@ where
 
 macro_rules! implement_binary_operator {
     ($first_argument_type:ty, $second_argument_type:ty, $product_type:ty, $operator_vector_as_first_argument:ident, $operator_vector_as_second_argument:ident, $operator_matrix_as_first_argument:ident, $operator_matrix_as_second_argument:ident) => {
-        impl BinaryOperatorApplierTrait<$first_argument_type, $second_argument_type, $product_type>
-            for BinaryOperatorApplier<$first_argument_type, $second_argument_type, $product_type>
+        impl
+            BinaryOperatorApplierTrait<
+                $first_argument_type,
+                $second_argument_type,
+                $product_type,
+            >
+            for BinaryOperatorApplier<
+                $first_argument_type,
+                $second_argument_type,
+                $product_type,
+            >
         {
             fn apply_with_vector_as_first_argument(
                 &self,
@@ -525,7 +545,8 @@ mod tests {
         )
         .unwrap();
 
-        let mut product_matrix = SparseMatrix::<u8>::new(&context, &matrix_size).unwrap();
+        let mut product_matrix =
+            SparseMatrix::<u8>::new(&context, &matrix_size).unwrap();
 
         let operator = BinaryOperatorApplier::new(
             &First::<u8, u8, u8>::new(),
@@ -534,14 +555,24 @@ mod tests {
         );
 
         operator
-            .apply_with_matrix_as_first_argument(&matrix, &10, &mut product_matrix)
+            .apply_with_matrix_as_first_argument(
+                &matrix,
+                &10,
+                &mut product_matrix,
+            )
             .unwrap();
 
         println!("{}", product_matrix);
 
         assert_eq!(product_matrix.number_of_stored_elements().unwrap(), 4);
-        assert_eq!(product_matrix.get_element_value(&(2, 1).into()).unwrap(), 2);
-        assert_eq!(product_matrix.get_element_value(&(9, 1).into()).unwrap(), 0);
+        assert_eq!(
+            product_matrix.get_element_value(&(2, 1).into()).unwrap(),
+            2
+        );
+        assert_eq!(
+            product_matrix.get_element_value(&(9, 1).into()).unwrap(),
+            0
+        );
 
         let operator = BinaryOperatorApplier::new(
             &First::<u8, u8, u8>::new(),
@@ -549,7 +580,11 @@ mod tests {
             None,
         );
         operator
-            .apply_with_matrix_as_second_argument(&10, &matrix, &mut product_matrix)
+            .apply_with_matrix_as_second_argument(
+                &10,
+                &matrix,
+                &mut product_matrix,
+            )
             .unwrap();
 
         println!("{}", matrix);
@@ -560,7 +595,10 @@ mod tests {
             product_matrix.get_element_value(&(2, 1).into()).unwrap(),
             10
         );
-        assert_eq!(product_matrix.get_element_value(&(9, 1).into()).unwrap(), 0);
+        assert_eq!(
+            product_matrix.get_element_value(&(9, 1).into()).unwrap(),
+            0
+        );
     }
 
     #[test]
@@ -583,7 +621,8 @@ mod tests {
         )
         .unwrap();
 
-        let mut product_vector = SparseVector::<u8>::new(&context, &vector_length).unwrap();
+        let mut product_vector =
+            SparseVector::<u8>::new(&context, &vector_length).unwrap();
 
         let operator = BinaryOperatorApplier::new(
             &First::<u8, u8, u8>::new(),
@@ -592,7 +631,11 @@ mod tests {
         );
 
         operator
-            .apply_with_vector_as_first_argument(&vector, &10, &mut product_vector)
+            .apply_with_vector_as_first_argument(
+                &vector,
+                &10,
+                &mut product_vector,
+            )
             .unwrap();
 
         println!("{}", product_vector);
@@ -607,7 +650,11 @@ mod tests {
             None,
         );
         operator
-            .apply_with_vector_as_second_argument(&10, &vector, &mut product_vector)
+            .apply_with_vector_as_second_argument(
+                &10,
+                &vector,
+                &mut product_vector,
+            )
             .unwrap();
 
         println!("{}", vector);

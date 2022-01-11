@@ -14,20 +14,35 @@ where
 
 macro_rules! implement_binary_operator {
     ($operator_name:ident,
-        $graphblas_operator_name:ident,
-        $value_type_left_input:ty,
-        $value_type_right_input:ty,
-        $value_type_output:ty
+     $graphblas_operator_name:ident,
+     $value_type_left_input:ty,
+     $value_type_right_input:ty,
+     $value_type_output:ty
     ) => {
-        impl BinaryOperator<$value_type_left_input, $value_type_right_input, $value_type_output>
-            for $operator_name<$value_type_left_input, $value_type_right_input, $value_type_output>
+        impl
+            BinaryOperator<
+                $value_type_left_input,
+                $value_type_right_input,
+                $value_type_output,
+            >
+            for $operator_name<
+                $value_type_left_input,
+                $value_type_right_input,
+                $value_type_output,
+            >
         {
             fn graphblas_type(&self) -> GrB_BinaryOp {
                 unsafe { $graphblas_operator_name }
             }
         }
 
-        impl $operator_name<$value_type_left_input, $value_type_right_input, $value_type_output> {
+        impl
+            $operator_name<
+                $value_type_left_input,
+                $value_type_right_input,
+                $value_type_output,
+            >
+        {
             pub fn new() -> Self {
                 Self {
                     _value_type_left_input: PhantomData,
@@ -77,6 +92,7 @@ where
     _value_type_output: PhantomData<Z>,
 }
 
+implement_binary_operator!(Second, GrB_SECOND_BOOL, bool, i32, i32);
 implement_binary_operator!(Second, GrB_SECOND_BOOL, bool, bool, bool);
 implement_binary_operator!(Second, GrB_SECOND_INT8, i8, i8, i8);
 implement_binary_operator!(Second, GrB_SECOND_INT16, i16, i16, i16);

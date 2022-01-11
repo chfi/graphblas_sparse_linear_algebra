@@ -3,36 +3,42 @@ use std::mem::MaybeUninit;
 use std::sync::Arc;
 
 use crate::error::{
-    GraphBlasError, GraphBlasErrorType, LogicErrorType, SparseLinearAlgebraError,
-    SparseLinearAlgebraErrorType,
+    GraphBlasError, GraphBlasErrorType, LogicErrorType,
+    SparseLinearAlgebraError, SparseLinearAlgebraErrorType,
 };
 
 use super::element::{VectorElement, VectorElementList};
 use crate::bindings_to_graphblas_implementation::{
-    GrB_Index, GrB_Vector, GrB_Vector_build_BOOL, GrB_Vector_build_FP32, GrB_Vector_build_FP64,
-    GrB_Vector_build_INT16, GrB_Vector_build_INT32, GrB_Vector_build_INT64, GrB_Vector_build_INT8,
-    GrB_Vector_build_UINT16, GrB_Vector_build_UINT32, GrB_Vector_build_UINT64,
-    GrB_Vector_build_UINT8, GrB_Vector_clear, GrB_Vector_dup, GrB_Vector_extractElement_BOOL,
+    GrB_Index, GrB_Vector, GrB_Vector_build_BOOL, GrB_Vector_build_FP32,
+    GrB_Vector_build_FP64, GrB_Vector_build_INT16, GrB_Vector_build_INT32,
+    GrB_Vector_build_INT64, GrB_Vector_build_INT8, GrB_Vector_build_UINT16,
+    GrB_Vector_build_UINT32, GrB_Vector_build_UINT64, GrB_Vector_build_UINT8,
+    GrB_Vector_clear, GrB_Vector_dup, GrB_Vector_extractElement_BOOL,
     GrB_Vector_extractElement_FP32, GrB_Vector_extractElement_FP64,
     GrB_Vector_extractElement_INT16, GrB_Vector_extractElement_INT32,
     GrB_Vector_extractElement_INT64, GrB_Vector_extractElement_INT8,
     GrB_Vector_extractElement_UINT16, GrB_Vector_extractElement_UINT32,
     GrB_Vector_extractElement_UINT64, GrB_Vector_extractElement_UINT8,
-    GrB_Vector_extractTuples_BOOL, GrB_Vector_extractTuples_FP32, GrB_Vector_extractTuples_FP64,
-    GrB_Vector_extractTuples_INT16, GrB_Vector_extractTuples_INT32, GrB_Vector_extractTuples_INT64,
+    GrB_Vector_extractTuples_BOOL, GrB_Vector_extractTuples_FP32,
+    GrB_Vector_extractTuples_FP64, GrB_Vector_extractTuples_INT16,
+    GrB_Vector_extractTuples_INT32, GrB_Vector_extractTuples_INT64,
     GrB_Vector_extractTuples_INT8, GrB_Vector_extractTuples_UINT16,
     GrB_Vector_extractTuples_UINT32, GrB_Vector_extractTuples_UINT64,
-    GrB_Vector_extractTuples_UINT8, GrB_Vector_free, GrB_Vector_new, GrB_Vector_nvals,
-    GrB_Vector_removeElement, GrB_Vector_resize, GrB_Vector_setElement_BOOL,
-    GrB_Vector_setElement_FP32, GrB_Vector_setElement_FP64, GrB_Vector_setElement_INT16,
-    GrB_Vector_setElement_INT32, GrB_Vector_setElement_INT64, GrB_Vector_setElement_INT8,
-    GrB_Vector_setElement_UINT16, GrB_Vector_setElement_UINT32, GrB_Vector_setElement_UINT64,
+    GrB_Vector_extractTuples_UINT8, GrB_Vector_free, GrB_Vector_new,
+    GrB_Vector_nvals, GrB_Vector_removeElement, GrB_Vector_resize,
+    GrB_Vector_setElement_BOOL, GrB_Vector_setElement_FP32,
+    GrB_Vector_setElement_FP64, GrB_Vector_setElement_INT16,
+    GrB_Vector_setElement_INT32, GrB_Vector_setElement_INT64,
+    GrB_Vector_setElement_INT8, GrB_Vector_setElement_UINT16,
+    GrB_Vector_setElement_UINT32, GrB_Vector_setElement_UINT64,
     GrB_Vector_setElement_UINT8, GrB_Vector_size,
 };
 use crate::context::Context;
 use crate::operators::binary_operator::BinaryOperator;
 use crate::util::{ElementIndex, IndexConversion};
-use crate::value_types::value_type::{BuiltInValueType, RegisteredCustomValueType, ValueType};
+use crate::value_types::value_type::{
+    BuiltInValueType, RegisteredCustomValueType, ValueType,
+};
 
 #[derive(Debug)]
 pub struct SparseVector<T: ValueType> {
@@ -80,7 +86,11 @@ impl<T: ValueType + BuiltInValueType<T>> SparseVector<T> {
         let length = length.to_graphblas_index()?;
 
         context.call(|| unsafe {
-            GrB_Vector_new(vector.as_mut_ptr(), <T>::to_graphblas_type(), length)
+            GrB_Vector_new(
+                vector.as_mut_ptr(),
+                <T>::to_graphblas_type(),
+                length,
+            )
         })?;
 
         let vector = unsafe { vector.assume_init() };
@@ -118,7 +128,10 @@ impl<T: ValueType + BuiltInValueType<T>> SparseVector<T> {
 
 impl<T: ValueType> SparseVector<T> {
     /// All elements of self with an index coordinate outside of the new size are dropped.
-    pub fn resize(&mut self, new_length: ElementIndex) -> Result<(), SparseLinearAlgebraError> {
+    pub fn resize(
+        &mut self,
+        new_length: ElementIndex,
+    ) -> Result<(), SparseLinearAlgebraError> {
         let new_length = new_length.to_graphblas_index()?;
 
         self.context
@@ -128,16 +141,21 @@ impl<T: ValueType> SparseVector<T> {
 
     pub fn length(&self) -> Result<ElementIndex, SparseLinearAlgebraError> {
         let mut length: MaybeUninit<GrB_Index> = MaybeUninit::uninit();
-        self.context
-            .call(|| unsafe { GrB_Vector_size(length.as_mut_ptr(), self.vector) })?;
+        self.context.call(|| unsafe {
+            GrB_Vector_size(length.as_mut_ptr(), self.vector)
+        })?;
         let length = unsafe { length.assume_init() };
         Ok(ElementIndex::from_graphblas_index(length)?)
     }
 
-    pub fn number_of_stored_elements(&self) -> Result<ElementIndex, SparseLinearAlgebraError> {
-        let mut number_of_values: MaybeUninit<GrB_Index> = MaybeUninit::uninit();
-        self.context
-            .call(|| unsafe { GrB_Vector_nvals(number_of_values.as_mut_ptr(), self.vector) })?;
+    pub fn number_of_stored_elements(
+        &self,
+    ) -> Result<ElementIndex, SparseLinearAlgebraError> {
+        let mut number_of_values: MaybeUninit<GrB_Index> =
+            MaybeUninit::uninit();
+        self.context.call(|| unsafe {
+            GrB_Vector_nvals(number_of_values.as_mut_ptr(), self.vector)
+        })?;
         let number_of_values = unsafe { number_of_values.assume_init() };
         Ok(ElementIndex::from_graphblas_index(number_of_values)?)
     }
@@ -148,8 +166,9 @@ impl<T: ValueType> SparseVector<T> {
     ) -> Result<(), SparseLinearAlgebraError> {
         let index_to_delete = index_to_delete.to_graphblas_index()?;
 
-        self.context
-            .call(|| unsafe { GrB_Vector_removeElement(self.vector, index_to_delete) })?;
+        self.context.call(|| unsafe {
+            GrB_Vector_removeElement(self.vector, index_to_delete)
+        })?;
         Ok(())
     }
 
@@ -166,7 +185,7 @@ impl<T: ValueType> SparseVector<T> {
         &self.context
     }
 
-    pub(crate) fn graphblas_vector(&self) -> GrB_Vector {
+    pub fn graphblas_vector(&self) -> GrB_Vector {
         self.vector.clone()
     }
 }
@@ -183,7 +202,9 @@ impl<T: ValueType> Clone for SparseVector<T> {
     fn clone(&self) -> Self {
         let mut vector_copy: MaybeUninit<GrB_Vector> = MaybeUninit::uninit();
         self.context
-            .call(|| unsafe { GrB_Vector_dup(vector_copy.as_mut_ptr(), self.vector) })
+            .call(|| unsafe {
+                GrB_Vector_dup(vector_copy.as_mut_ptr(), self.vector)
+            })
             .unwrap();
 
         SparseVector {
@@ -266,12 +287,15 @@ macro_rules! sparse_matrix_from_element_vector {
                 // TODO: check size constraints
                 let vector = Self::new(context, length)?;
 
-                let mut graphblas_indices = Vec::with_capacity(elements.length());
+                let mut graphblas_indices =
+                    Vec::with_capacity(elements.length());
 
                 for i in 0..elements.length() {
-                    graphblas_indices.push(elements.index(i)?.to_graphblas_index()?);
+                    graphblas_indices
+                        .push(elements.index(i)?.to_graphblas_index()?);
                 }
-                let number_of_elements = elements.length().to_graphblas_index()?;
+                let number_of_elements =
+                    elements.length().to_graphblas_index()?;
                 vector.context.call(|| unsafe {
                     $build_function(
                         vector.vector,
@@ -300,7 +324,10 @@ sparse_matrix_from_element_vector!(f32, GrB_Vector_build_FP32);
 sparse_matrix_from_element_vector!(f64, GrB_Vector_build_FP64);
 
 pub trait SetVectorElement<T: ValueType> {
-    fn set_element(&mut self, element: VectorElement<T>) -> Result<(), SparseLinearAlgebraError>;
+    fn set_element(
+        &mut self,
+        element: VectorElement<T>,
+    ) -> Result<(), SparseLinearAlgebraError>;
 }
 
 macro_rules! implement_set_element_for_built_in_type {
@@ -312,7 +339,11 @@ macro_rules! implement_set_element_for_built_in_type {
             ) -> Result<(), SparseLinearAlgebraError> {
                 let index_to_set = element.index().to_graphblas_index()?;
                 self.context.call(|| unsafe {
-                    $add_element_function(self.vector, element.value().into(), index_to_set)
+                    $add_element_function(
+                        self.vector,
+                        element.value().into(),
+                        index_to_set,
+                    )
                 })?;
                 Ok(())
             }
@@ -340,8 +371,9 @@ macro_rules! implement_set_element_for_custom_type {
                 element: VectorElement<$value_type>,
             ) -> Result<(), SparseLinearAlgebraError> {
                 let index_to_set = element.index().to_graphblas_index()?;
-                let value: *mut c_void = &mut element.value() as *mut $value_type as *mut c_void; // https://stackoverflow.com/questions/24191249/working-with-c-void-in-an-ffi
-                                                                                                  // let value: *mut c_void = &mut element.value() as *mut _ as *mut c_void; // https://stackoverflow.com/questions/24191249/working-with-c-void-in-an-ffi
+                let value: *mut c_void =
+                    &mut element.value() as *mut $value_type as *mut c_void; // https://stackoverflow.com/questions/24191249/working-with-c-void-in-an-ffi
+                                                                             // let value: *mut c_void = &mut element.value() as *mut _ as *mut c_void; // https://stackoverflow.com/questions/24191249/working-with-c-void-in-an-ffi
                 self.context.call(|| unsafe {
                     GrB_Vector_setElement_UDT(self.vector, value, index_to_set)
                 })?;
@@ -372,7 +404,10 @@ macro_rules! implement_set_element_for_custom_type {
 // implement_set_element_for_custom_type!(u128);
 
 pub trait GetVectorElementValue<T: ValueType + Default> {
-    fn get_element_value(&self, index: &ElementIndex) -> Result<T, SparseLinearAlgebraError>;
+    fn get_element_value(
+        &self,
+        index: &ElementIndex,
+    ) -> Result<T, SparseLinearAlgebraError>;
 }
 
 macro_rules! implement_get_element_value_for_built_in_type {
@@ -386,7 +421,11 @@ macro_rules! implement_get_element_value_for_built_in_type {
                 let index_to_get = index.to_graphblas_index()?;
 
                 let result = self.context.call(|| unsafe {
-                    $get_element_function(value.as_mut_ptr(), self.vector, index_to_get)
+                    $get_element_function(
+                        value.as_mut_ptr(),
+                        self.vector,
+                        index_to_get,
+                    )
                 });
 
                 match result {
@@ -396,7 +435,9 @@ macro_rules! implement_get_element_value_for_built_in_type {
                     }
                     Err(error) => match error.error_type() {
                         SparseLinearAlgebraErrorType::LogicErrorType(
-                            LogicErrorType::GraphBlas(GraphBlasErrorType::NoValue),
+                            LogicErrorType::GraphBlas(
+                                GraphBlasErrorType::NoValue,
+                            ),
                         ) => Ok(<$value_type>::default()),
                         _ => Err(error),
                     },
@@ -406,17 +447,50 @@ macro_rules! implement_get_element_value_for_built_in_type {
     };
 }
 
-implement_get_element_value_for_built_in_type!(bool, GrB_Vector_extractElement_BOOL);
-implement_get_element_value_for_built_in_type!(i8, GrB_Vector_extractElement_INT8);
-implement_get_element_value_for_built_in_type!(i16, GrB_Vector_extractElement_INT16);
-implement_get_element_value_for_built_in_type!(i32, GrB_Vector_extractElement_INT32);
-implement_get_element_value_for_built_in_type!(i64, GrB_Vector_extractElement_INT64);
-implement_get_element_value_for_built_in_type!(u8, GrB_Vector_extractElement_UINT8);
-implement_get_element_value_for_built_in_type!(u16, GrB_Vector_extractElement_UINT16);
-implement_get_element_value_for_built_in_type!(u32, GrB_Vector_extractElement_UINT32);
-implement_get_element_value_for_built_in_type!(u64, GrB_Vector_extractElement_UINT64);
-implement_get_element_value_for_built_in_type!(f32, GrB_Vector_extractElement_FP32);
-implement_get_element_value_for_built_in_type!(f64, GrB_Vector_extractElement_FP64);
+implement_get_element_value_for_built_in_type!(
+    bool,
+    GrB_Vector_extractElement_BOOL
+);
+implement_get_element_value_for_built_in_type!(
+    i8,
+    GrB_Vector_extractElement_INT8
+);
+implement_get_element_value_for_built_in_type!(
+    i16,
+    GrB_Vector_extractElement_INT16
+);
+implement_get_element_value_for_built_in_type!(
+    i32,
+    GrB_Vector_extractElement_INT32
+);
+implement_get_element_value_for_built_in_type!(
+    i64,
+    GrB_Vector_extractElement_INT64
+);
+implement_get_element_value_for_built_in_type!(
+    u8,
+    GrB_Vector_extractElement_UINT8
+);
+implement_get_element_value_for_built_in_type!(
+    u16,
+    GrB_Vector_extractElement_UINT16
+);
+implement_get_element_value_for_built_in_type!(
+    u32,
+    GrB_Vector_extractElement_UINT32
+);
+implement_get_element_value_for_built_in_type!(
+    u64,
+    GrB_Vector_extractElement_UINT64
+);
+implement_get_element_value_for_built_in_type!(
+    f32,
+    GrB_Vector_extractElement_FP32
+);
+implement_get_element_value_for_built_in_type!(
+    f64,
+    GrB_Vector_extractElement_FP64
+);
 
 pub trait GetVectorElement<T: ValueType> {
     fn get_element(
@@ -431,7 +505,8 @@ macro_rules! implement_get_element_for_built_in_type {
             fn get_element(
                 &self,
                 index: ElementIndex,
-            ) -> Result<VectorElement<$value_type>, SparseLinearAlgebraError> {
+            ) -> Result<VectorElement<$value_type>, SparseLinearAlgebraError>
+            {
                 Ok(VectorElement::new(index, self.get_element_value(&index)?))
             }
         }
@@ -456,13 +531,19 @@ macro_rules! implement_get_element_for_custom_type {
             fn get_element(
                 &self,
                 index: ElementIndex,
-            ) -> Result<VectorElement<$value_type>, SparseLinearAlgebraError> {
+            ) -> Result<VectorElement<$value_type>, SparseLinearAlgebraError>
+            {
                 let mut value: MaybeUninit<$value_type> = MaybeUninit::uninit();
-                let pointer_to_value: *mut c_void = &mut value as *mut _ as *mut c_void; // https://stackoverflow.com/questions/24191249/working-with-c-void-in-an-ffi
+                let pointer_to_value: *mut c_void =
+                    &mut value as *mut _ as *mut c_void; // https://stackoverflow.com/questions/24191249/working-with-c-void-in-an-ffi
                 let index_to_get = index.to_graphblas_index()?;
 
                 self.context.call(|| unsafe {
-                    GrB_Vector_extractElement_UDT(pointer_to_value, self.vector, index_to_get)
+                    GrB_Vector_extractElement_UDT(
+                        pointer_to_value,
+                        self.vector,
+                        index_to_get,
+                    )
                 })?;
 
                 let value = unsafe { value.assume_init() };
@@ -479,7 +560,9 @@ macro_rules! implement_get_element_for_custom_type {
 // implement_get_element_for_custom_type!(u128);
 
 pub trait GetVectorElementList<T: ValueType> {
-    fn get_element_list(&self) -> Result<VectorElementList<T>, SparseLinearAlgebraError>;
+    fn get_element_list(
+        &self,
+    ) -> Result<VectorElementList<T>, SparseLinearAlgebraError>;
 }
 
 macro_rules! implement_get_element_list {
@@ -562,7 +645,8 @@ mod tests {
 
         let length: ElementIndex = 10;
 
-        let sparse_vector = SparseVector::<i32>::new(&context, &length).unwrap();
+        let sparse_vector =
+            SparseVector::<i32>::new(&context, &length).unwrap();
 
         assert_eq!(length, sparse_vector.length().unwrap());
         assert_eq!(0, sparse_vector.number_of_stored_elements().unwrap());
@@ -574,7 +658,8 @@ mod tests {
 
         let length: ElementIndex = 10;
 
-        let sparse_vector = SparseVector::<f32>::new(&context, &length).unwrap();
+        let sparse_vector =
+            SparseVector::<f32>::new(&context, &length).unwrap();
 
         let clone_of_sparse_vector = sparse_vector.clone();
 
@@ -592,7 +677,8 @@ mod tests {
 
         let length: ElementIndex = 10;
 
-        let mut sparse_vector = SparseVector::<i32>::new(&context, &length).unwrap();
+        let mut sparse_vector =
+            SparseVector::<i32>::new(&context, &length).unwrap();
 
         let new_length: ElementIndex = 5;
         sparse_vector.resize(new_length.clone()).unwrap();
@@ -636,7 +722,8 @@ mod tests {
 
         let length: ElementIndex = 10;
 
-        let mut sparse_vector = SparseVector::<i32>::new(&context, &length).unwrap();
+        let mut sparse_vector =
+            SparseVector::<i32>::new(&context, &length).unwrap();
 
         sparse_vector
             .set_element(VectorElement::from_pair(1, 2))
@@ -653,9 +740,9 @@ mod tests {
         match sparse_vector.set_element(VectorElement::from_pair(15, 3)) {
             Err(error) => {
                 match error.error_type() {
-                    SparseLinearAlgebraErrorType::LogicErrorType(LogicErrorType::GraphBlas(
-                        error_type,
-                    )) => {
+                    SparseLinearAlgebraErrorType::LogicErrorType(
+                        LogicErrorType::GraphBlas(error_type),
+                    ) => {
                         assert_eq!(error_type, GraphBlasErrorType::InvalidIndex)
                     }
                     _ => assert!(false),
@@ -748,7 +835,8 @@ mod tests {
 
         let length: ElementIndex = 10;
 
-        let mut sparse_vector = SparseVector::<i64>::new(&context, &length).unwrap();
+        let mut sparse_vector =
+            SparseVector::<i64>::new(&context, &length).unwrap();
 
         sparse_vector
             .set_element(VectorElement::from_pair(2, 3))
@@ -768,7 +856,8 @@ mod tests {
 
         let length: ElementIndex = 10;
 
-        let mut sparse_vector = SparseVector::<u8>::new(&context, &length).unwrap();
+        let mut sparse_vector =
+            SparseVector::<u8>::new(&context, &length).unwrap();
 
         let element_1 = VectorElement::from_pair(1, 2);
         let element_2 = VectorElement::from_pair(2, 3);
