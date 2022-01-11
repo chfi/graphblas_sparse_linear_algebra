@@ -1,4 +1,5 @@
 use crate::operators::binary_operator::{Plus, Times};
+use crate::operators::monoid::{LogicalAnd, LogicalOr};
 use crate::value_types::value_type::ValueType;
 
 use crate::bindings_to_graphblas_implementation::*;
@@ -26,7 +27,11 @@ macro_rules! implement_semiring_operator {
         impl $semiring<$multiplier, $multiplicant, $product> {
             pub fn new() -> Self {
                 Self {
-                    addition_operator: $addition_operator::<$product, $product, $product>::new(),
+                    addition_operator: $addition_operator::<
+                        $product,
+                        $product,
+                        $product,
+                    >::new(),
 
                     multiplication_operator: $multiplication_operator::<
                         $multiplier,
@@ -142,6 +147,27 @@ implement_semiring_operator!(
     GrB_PLUS_TIMES_SEMIRING_FP64
 );
 
+#[derive(Debug, Clone)]
+pub struct LAndLOr {
+    and_op: LogicalAnd<bool>,
+    or_op: LogicalOr<bool>,
+}
+
+impl Semiring<bool, bool, bool> for LAndLOr {
+    fn graphblas_type(&self) -> GrB_Semiring {
+        unsafe { GrB_LOR_LAND_SEMIRING_BOOL }
+    }
+}
+
+impl LAndLOr {
+    pub fn new() -> Self {
+        Self {
+            and_op: LogicalAnd::new(),
+            or_op: LogicalOr::new(),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -152,7 +178,10 @@ mod tests {
 
         unsafe {
             assert_eq!(semiring.graphblas_type(), GrB_PLUS_TIMES_SEMIRING_INT8);
-            assert_ne!(semiring.graphblas_type(), GrB_PLUS_TIMES_SEMIRING_INT16);
+            assert_ne!(
+                semiring.graphblas_type(),
+                GrB_PLUS_TIMES_SEMIRING_INT16
+            );
         }
     }
 
